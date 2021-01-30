@@ -4,6 +4,7 @@
 #include "Adafruit_TSL2591.h"
 #include <RF24Network.h>
 #include <RF24.h>
+#include <nRF24L01.h>
 #include <SPI.h>
 
  
@@ -14,7 +15,8 @@
 #define pinIR A3 
 #define pinMQ2 A1
 #define pinMQ7 A0
-#define pinTSL2591 A4
+#define CE_PIN 9
+#define CSN_PIN 10
 #define freqChannel 120
 #define antennaIntensity RF24_PA_MIN
 #define numRetries 15
@@ -25,12 +27,13 @@
 // CLASES PARA LOS OBJETOS
 SimpleDHT22 dht22(pinDHT22);
 Adafruit_TSL2591 tsl = Adafruit_TSL2591(2591);
-RF24 radio(9, 10);  
+RF24 radio(CE_PIN, CSN_PIN);  
 RF24Network network(radio);      
 
 
 
 // IDENTIFICADORES EN LA TOPOLOGIA
+
 const uint16_t this_node = 01;        
 const uint16_t other_node = 00;   
 
@@ -52,10 +55,12 @@ struct payloadRF24 {
   char id[3];   
   float temperature;  
   float humidity;
-  int ir;
+  uint16_t visible;
+  uint16_t ir;
+  float lux;
+  int irFlame;
   int mq2;
   int mq7;
-  int tsl;
 };
  
 
@@ -117,17 +122,21 @@ void loop(){
   prtl(mq7Measures);
 
   // Envio de datos al Nodo Raiz
-  // prtl("Enviando datos al nodo raiz ....");
-  // payloadRF24 payload = {"01", dht22Measures.temperature, dht22Measures.humidity, irMeasures, mq2Measures, mq7Measures, tslMeasures};
-  // bool ok = sendRF24(payload);
-
-  // if (ok == true){
-  //  prtl("Medida enviada correctamente ...");
-  // } else {
-  //  prtl("No se ha recibido payload de respuesta ...");
-  // }
+  prtl("Enviando datos al nodo raiz ....");
   
-  delay(2000);
+  payloadRF24 payload = {"01", dht22Measures.temperature, dht22Measures.humidity,
+                          tslMeasures.visible, tslMeasures.ir, tslMeasures.lux, 
+                          irMeasures, mq2Measures, mq7Measures};
+
+  bool ok = sendRF24(payload);
+
+  if (ok == true){
+   prtl("Medida enviada correctamente ...");
+  } else {
+  prtl("No se ha recibido acknowledge ...");
+  }
+  
+  delay(5000);
   
 }
 
@@ -250,6 +259,7 @@ int readMQ7Sensor(){
 // FUNCIONES AUXILIARES DEL NRF24L01
 
 void initRF24(){
+  
   SPI.begin();
   radio.begin();
   radio.setChannel(freqChannel);
